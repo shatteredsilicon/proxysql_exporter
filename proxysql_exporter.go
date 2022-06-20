@@ -20,11 +20,11 @@ import (
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/percona/exporter_shared"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
+	"github.com/shatteredsilicon/exporter_shared"
 )
 
 const (
