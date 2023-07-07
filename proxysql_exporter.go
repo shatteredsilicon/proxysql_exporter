@@ -80,6 +80,7 @@ func main() {
 	// set flags for exporter_shared server
 	flag.Set("web.ssl-cert-file", lookupConfig("web.ssl-cert-file", "").(string))
 	flag.Set("web.ssl-key-file", lookupConfig("web.ssl-key-file", "").(string))
+	flag.Set("web.auth-file", lookupConfig("web.auth-file", "").(string))
 
 	dsn := os.Getenv("DATA_SOURCE_NAME")
 	if dsn == "" {
@@ -108,6 +109,7 @@ type webConfig struct {
 	MetricsPath   string `ini:"telemetry-path"`
 	SSLCertFile   string `ini:"ssl-cert-file"`
 	SSLKeyFile    string `ini:"ssl-key-file"`
+	AuthFile      string `ini:"auth-file"`
 }
 
 type collectConfig struct {
