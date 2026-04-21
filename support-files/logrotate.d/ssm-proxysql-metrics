@@ -1,4 +1,0 @@
-/var/log/ssm-proxysql-metrics.log {
-    rotate 30
-    daily
-}
