@@ -1,6 +1,6 @@
 module github.com/shatteredsilicon/proxysql_exporter
 
-go 1.26.5
+go 1.26.7
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
@@ -10,7 +10,7 @@ require (
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/exporter-toolkit v0.15.1
 	github.com/smartystreets/goconvey v1.6.3
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.57.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -36,11 +36,11 @@ require (
 	github.com/smartystreets/gunit v1.4.5 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
