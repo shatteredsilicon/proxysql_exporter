@@ -15,139 +15,54 @@
 package main
 
 import (
-	"crypto/tls"
+	"flag"
 	"fmt"
-	"log/slog"
-	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/kingpin/v2"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/common/promslog/flag"
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
-	"github.com/prometheus/exporter-toolkit/web"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/shatteredsilicon/exporter_shared"
 	"gopkg.in/ini.v1"
-	"gopkg.in/yaml.v2"
 )
 
 const (
-	program             = "proxysql_exporter"
-	defaultDataSource   = "stats:stats@tcp(localhost:6032)/"
-	webAuthFileFlagName = "web.auth-file"
+	program           = "proxysql_exporter"
+	defaultDataSource = "stats:stats@tcp(localhost:6032)/"
 )
 
 var (
-	configPath = kingpin.Flag(
-		"config",
-		"Path of config file",
-	).Default("/opt/ss/ssm-client/proxysql_exporter.conf").String()
+	versionF       = flag.Bool("version", false, "Print version information and exit.")
+	configPath     = flag.String("config", "/opt/ss/ssm-client/proxysql_exporter.conf", "Path of config file")
+	listenAddressF = flag.String("web.listen-address", ":42004", "Address to listen on for web interface and telemetry.")
+	telemetryPathF = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 
-	listenAddress = kingpin.Flag(
-		"web.listen-address",
-		"Address to listen on for web interface and telemetry.",
-	).Strings()
-
-	telemetryPathF = kingpin.Flag(
-		"web.telemetry-path",
-		"Path under which to expose metrics.",
-	).Default("/metrics").String()
-
-	webAuthFile     = kingpin.Flag("web.auth-file", "Path to YAML file with server_user, server_password keys for HTTP Basic authentication.").String()
-	webConfigFile   = kingpin.Flag("web.config.file", "Path to prometheus web config file (YAML).").Default("/opt/ss/ssm-client/proxysql_exporter.yml").String()
-	tlsMinVersion   = kingpin.Flag("web.tls-min-version", "Minimum TLS version that is acceptable.").String()
-	tlsMaxVersion   = kingpin.Flag("web.tls-max-version", "Maximum TLS version that is acceptable.").String()
-	tlsCipherSuites = kingpin.Flag(
-		"web.tls-cipher-suites",
-		"A list of enabled TLS 1.0–1.2 cipher suites. Check full list at https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go",
-	).Strings()
-	sslCertFile = kingpin.Flag(
-		"web.ssl-cert-file",
-		"Path to SSL certificate file.",
-	).String()
-	sslKeyFile = kingpin.Flag(
-		"web.ssl-key-file",
-		"Path to SSL key file.",
-	).String()
-	systemdSocket = kingpin.Flag(
-		"web.systemd-socket",
-		"Use systemd socket activation listeners instead of port listeners (Linux only).",
-	).Bool()
-
-	mysqlStatusF = kingpin.Flag(
-		"collect.mysql_status",
-		"Collect from stats_mysql_global (SHOW MYSQL STATUS).",
-	).Bool()
-
-	mysqlConnectionPoolF = kingpin.Flag(
-		"collect.mysql_connection_pool",
-		"Collect from stats_mysql_connection_pool.",
-	).Bool()
-
-	_ = kingpin.Flag("c", "").Hidden().Short('c').Action(convertFlagAction('c')).Strings()
-	_ = kingpin.Flag("w", "").Hidden().Short('w').Action(convertFlagAction('w')).Strings()
-	_ = kingpin.Flag("e", "").Hidden().Short('e').Action(convertFlagAction('e')).Strings()
-	_ = kingpin.Flag("t", "").Hidden().Short('t').Action(convertFlagAction('t')).Strings()
+	mysqlStatusF         = flag.Bool("collect.mysql_status", true, "Collect from stats_mysql_global (SHOW MYSQL STATUS).")
+	mysqlConnectionPoolF = flag.Bool("collect.mysql_connection_pool", true, "Collect from stats_mysql_connection_pool.")
 )
 
 var cfg = new(config)
-var setByUserMap = make(map[string]bool)
-
-func init() {
-	kingpin.CommandLine.PreAction(setByUserFlagAction())
-}
-
-func setByUserFlagAction() func(ctx *kingpin.ParseContext) error {
-	executed := false
-
-	return func(pc *kingpin.ParseContext) error {
-		if executed {
-			return nil
-		}
-
-		for _, elem := range pc.Elements {
-			if elem.Clause == nil {
-				continue
-			}
-
-			flagClause, ok := elem.Clause.(*kingpin.FlagClause)
-			if !ok || flagClause == nil {
-				continue
-			}
-
-			setByUserMap[flagClause.Model().Name] = true
-		}
-
-		executed = true
-		return nil
-	}
-}
 
 func main() {
-	kingpin.CommandLine.Help = fmt.Sprintf(
-		"%s %s exports various ProxySQL metrics in Prometheus format. "+
-			"It uses DATA_SOURCE_NAME environment variable with following format: https://github.com/go-sql-driver/mysql#dsn-data-source-name, "+
-			"default value is %q.",
-		program, version.Version, defaultDataSource,
-	)
-
-	kingpin.Version(version.Print(program))
-	kingpin.HelpFlag.Short('h')
-	kingpin.Parse()
-
-	promslogConfig := &promslog.Config{}
-	flag.AddFlags(kingpin.CommandLine, promslogConfig)
-	if os.Getenv("DEBUG") == "1" {
-		promslogConfig.Level.Set("debug")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%s %s exports various ProxySQL metrics in Prometheus format.\n", os.Args[0], version.Version)
+		fmt.Fprintf(os.Stderr, "It uses DATA_SOURCE_NAME environment variable with following format: https://github.com/go-sql-driver/mysql#dsn-data-source-name\n")
+		fmt.Fprintf(os.Stderr, "Default value is %q.\n\n", defaultDataSource)
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Flags:\n")
+		flag.PrintDefaults()
 	}
-	logger := promslog.New(promslogConfig)
-	slog.SetDefault(logger)
+	flag.Parse()
+
+	if *versionF {
+		fmt.Println(version.Print(program))
+		os.Exit(0)
+	}
 
 	if os.Getenv("ON_CONFIGURE") == "1" {
 		err := configure()
@@ -159,121 +74,28 @@ func main() {
 
 	err := ini.MapTo(cfg, *configPath)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Load config file %s failed: %s", *configPath, err.Error()))
-		os.Exit(1)
+		log.Fatal(fmt.Sprintf("Load config file %s failed: %s", *configPath, err.Error()))
 	}
 
-	// override flag value with config value
-	// if it's not set
-	overrideFlags()
+	// set flags for exporter_shared server
+	flag.Set("web.ssl-cert-file", lookupConfig("web.ssl-cert-file", "").(string))
+	flag.Set("web.ssl-key-file", lookupConfig("web.ssl-key-file", "").(string))
+	flag.Set("web.auth-file", lookupConfig("web.auth-file", "/opt/ss/ssm-client/ssm.yml").(string))
 
 	dsn := os.Getenv("DATA_SOURCE_NAME")
 	if dsn == "" {
-		dsn = cfg.DSN
+		dsn = lookupConfig("dsn", "").(string)
 	}
 	if dsn == "" {
 		dsn = defaultDataSource
 	}
 
-	slog.Info(fmt.Sprintf("Starting %s %s for %s", program, version.Version, dsn))
+	log.Infof("Starting %s %s for %s", program, version.Version, dsn)
 
-	exporter := NewExporter(dsn, *mysqlStatusF, *mysqlConnectionPoolF)
-	handlerFunc := newHandler(exporter)
-	http.Handle(*telemetryPathF, promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, handlerFunc))
+	exporter := NewExporter(dsn, lookupConfig("collect.mysql_status", *mysqlStatusF).(bool), lookupConfig("collect.mysql_connection_pool", *mysqlConnectionPoolF).(bool))
+	prometheus.MustRegister(exporter)
 
-	var authC authConfig
-	if *webAuthFile != "" {
-		authConfigBytes, err := os.ReadFile(*webAuthFile)
-		if err != nil {
-			logger.Error(err.Error())
-			os.Exit(1)
-		}
-		if err := yaml.Unmarshal(authConfigBytes, &authC); err != nil {
-			logger.Error(err.Error())
-			os.Exit(1)
-		}
-	}
-
-	tlsMinVer := (web.TLSVersion)(tls.VersionTLS12)
-	tlsMaxVer := (web.TLSVersion)(tls.VersionTLS13)
-	if tlsMinVersion != nil && *tlsMinVersion != "" {
-		if err := yaml.Unmarshal([]byte(*tlsMinVersion), &tlsMinVer); err != nil {
-			logger.Error(fmt.Sprintf("Unsupported tls minimum version: %s", *tlsMinVersion))
-			os.Exit(1)
-		}
-	}
-	if tlsMaxVersion != nil && *tlsMaxVersion != "" {
-		if err := yaml.Unmarshal([]byte(*tlsMaxVersion), &tlsMaxVer); err != nil {
-			logger.Error(fmt.Sprintf("Unsupported tls maximum version: %s", *tlsMaxVersion))
-			os.Exit(1)
-		}
-	}
-
-	cipherSuites := []web.Cipher{}
-	if tlsCipherSuites != nil && len(*tlsCipherSuites) != 0 {
-		allCipherSuites := append(tls.CipherSuites(), tls.InsecureCipherSuites()...)
-		for _, tlsCipherSuite := range *tlsCipherSuites {
-			var cipherSuite *tls.CipherSuite
-			for _, v := range allCipherSuites {
-				if v.Name == tlsCipherSuite {
-					cipherSuite = v
-					break
-				}
-			}
-			if cipherSuite == nil {
-				logger.Error(fmt.Sprintf("Unsupported cipher suite: %s", tlsCipherSuite))
-				os.Exit(1)
-			}
-			cipherSuites = append(cipherSuites, web.Cipher(cipherSuite.ID))
-		}
-	}
-
-	prometheusWebConfig := prometheusWebConfig{
-		TLSConfig: prometheusTLSConfig{
-			MinVersion:   &tlsMinVer,
-			MaxVersion:   &tlsMaxVer,
-			CipherSuites: cipherSuites,
-		},
-	}
-	if authC.ServerUser != "" {
-		hashedPsw, err := bcrypt.GenerateFromPassword([]byte(authC.ServerPassword), 0)
-		if err != nil {
-			logger.Error(err.Error())
-			os.Exit(1)
-		}
-		prometheusWebConfig.Users = map[string]string{
-			authC.ServerUser: string(hashedPsw),
-		}
-	}
-	if *sslCertFile != "" || *sslKeyFile != "" {
-		prometheusWebConfig.TLSConfig.TLSCertPath = *sslCertFile
-		prometheusWebConfig.TLSConfig.TLSKeyPath = *sslKeyFile
-	}
-
-	if *webConfigFile == "" {
-		logger.Error("Use web.config.file flag/config to tell the location of prometheus web file")
-		os.Exit(1)
-	}
-	webConfigBytes, err := yaml.Marshal(prometheusWebConfig)
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-	if err = os.WriteFile(*webConfigFile, webConfigBytes, 0600); err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-
-	srv := &http.Server{}
-	toolkitFlags := &web.FlagConfig{
-		WebSystemdSocket:   systemdSocket,
-		WebListenAddresses: listenAddress,
-		WebConfigFile:      webConfigFile,
-	}
-	if err := web.ListenAndServe(srv, toolkitFlags, logger); err != nil {
-		logger.Error("Error starting HTTP server", "err", err)
-		os.Exit(1)
-	}
+	exporter_shared.RunServer("ProxySQL", lookupConfig("web.listen-address", *listenAddressF).(string), lookupConfig("web.telemetry-path", *telemetryPathF).(string), promhttp.ContinueOnError)
 }
 
 type config struct {
@@ -295,7 +117,102 @@ type collectConfig struct {
 	MysqlConnectionPool bool `ini:"mysql_connection_pool"`
 }
 
-func configVisit(visitFn func(string, string, reflect.Value)) {
+// lookupConfig lookup config from flag
+// or config by name, returns nil if none exists.
+// name should be in this format -> '[section].[key]'
+func lookupConfig(name string, defaultValue interface{}) interface{} {
+	flagSet, flagValue := lookupFlag(name)
+	if flagSet {
+		return flagValue
+	}
+
+	section := ""
+	key := name
+	if i := strings.Index(name, "."); i > 0 {
+		section = name[0:i]
+		if len(name) > i+1 {
+			key = name[i+1:]
+		} else {
+			key = ""
+		}
+	}
+
+	t := reflect.TypeOf(*cfg)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		iniName := field.Tag.Get("ini")
+		matched := iniName == section
+		if section == "" {
+			matched = iniName == key
+		}
+		if !matched {
+			continue
+		}
+
+		v := reflect.ValueOf(cfg).Elem().Field(i)
+		if section == "" {
+			return v.Interface()
+		}
+
+		if !v.CanAddr() {
+			continue
+		}
+
+		st := reflect.TypeOf(v.Interface())
+		for j := 0; j < st.NumField(); j++ {
+			sectionField := st.Field(j)
+			sectionININame := sectionField.Tag.Get("ini")
+			if sectionININame != key {
+				continue
+			}
+
+			if reflect.ValueOf(v.Addr().Elem().Field(j).Interface()).Kind() != reflect.Ptr {
+				return v.Addr().Elem().Field(j).Interface()
+			}
+
+			if v.Addr().Elem().Field(j).IsNil() {
+				return defaultValue
+			}
+
+			return v.Addr().Elem().Field(j).Elem().Interface()
+		}
+	}
+
+	return defaultValue
+}
+
+func lookupFlag(name string) (flagSet bool, flagValue interface{}) {
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			flagSet = true
+			switch reflect.Indirect(reflect.ValueOf(f.Value)).Kind() {
+			case reflect.Bool:
+				flagValue = reflect.Indirect(reflect.ValueOf(f.Value)).Bool()
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				flagValue = reflect.Indirect(reflect.ValueOf(f.Value)).Int()
+			case reflect.Float32, reflect.Float64:
+				flagValue = reflect.Indirect(reflect.ValueOf(f.Value)).Float()
+			case reflect.String:
+				flagValue = reflect.Indirect(reflect.ValueOf(f.Value)).String()
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				flagValue = reflect.Indirect(reflect.ValueOf(f.Value)).Uint()
+			}
+		}
+	})
+
+	return
+}
+
+func configure() error {
+	iniCfg, err := ini.Load(*configPath)
+	if err != nil {
+		return err
+	}
+
+	if err = iniCfg.MapTo(cfg); err != nil {
+		return err
+	}
+
 	type item struct {
 		value   reflect.Value
 		section string
@@ -312,63 +229,42 @@ func configVisit(visitFn func(string, string, reflect.Value)) {
 			fieldValue := items[i].value.Field(j)
 			fieldType := items[i].value.Type().Field(j)
 			section := items[i].section
-			key := strings.SplitN(fieldType.Tag.Get("ini"), ",", 2)[0]
+			key := fieldType.Tag.Get("ini")
 
 			if fieldValue.Kind() == reflect.Struct {
-				if fieldValue.CanAddr() {
-					if section == "" {
-						section = key
-					} else if section != key {
-						section = fmt.Sprintf("%s.%s", section, key)
-					}
-
+				if fieldValue.CanAddr() && section == "" {
 					items = append(items, item{
 						value:   fieldValue.Addr().Elem(),
-						section: section,
+						section: key,
 					})
 				}
 				continue
-			} else if fieldValue.Kind() == reflect.Ptr && fieldValue.Type().Elem().Kind() == reflect.String && fieldValue.IsNil() {
+			}
+
+			flagSet, flagValue := lookupFlag(fmt.Sprintf("%s.%s", section, key))
+			if !flagSet {
 				continue
 			}
 
-			visitFn(section, key, fieldValue)
+			if fieldValue.IsValid() && fieldValue.CanSet() {
+				switch fieldValue.Kind() {
+				case reflect.Bool:
+					iniCfg.Section(section).Key(key).SetValue(fmt.Sprintf("%t", flagValue.(bool)))
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					iniCfg.Section(section).Key(key).SetValue(fmt.Sprintf("%d", flagValue.(int64)))
+				case reflect.Float32, reflect.Float64:
+					iniCfg.Section(section).Key(key).SetValue(fmt.Sprintf("%f", flagValue.(float64)))
+				case reflect.String:
+					iniCfg.Section(section).Key(key).SetValue(strconv.Quote(flagValue.(string)))
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					iniCfg.Section(section).Key(key).SetValue(fmt.Sprintf("%d", flagValue.(uint64)))
+				}
+			}
 		}
 	}
-}
 
-func configure() error {
-	iniCfg, err := ini.Load(*configPath)
-	if err != nil {
-		return err
-	}
-
-	if err = iniCfg.MapTo(cfg); err != nil {
-		return err
-	}
-
-	configVisit(func(section, key string, fieldValue reflect.Value) {
-		flagKey := fmt.Sprintf("%s.%s", section, key)
-		if section == "" {
-			flagKey = key
-		}
-
-		setByUser := setByUserMap[flagKey]
-		kingpinF := kingpin.CommandLine.GetFlag(flagKey)
-		if !setByUser || kingpinF == nil {
-			return
-		}
-
-		// Don't override web.auth-file config
-		if flagKey == webAuthFileFlagName {
-			return
-		}
-
-		iniCfg.Section(section).Key(key).SetValue(kingpinF.Model().Value.String())
-	})
-
-	if dsn := os.Getenv("DATA_SOURCE_NAME"); dsn != "" {
-		iniCfg.Section("exporter").Key("dsn").SetValue(strconv.Quote(dsn))
+	if os.Getenv("DATA_SOURCE_NAME") != "" {
+		iniCfg.Section("").Key("dsn").SetValue(strconv.Quote(os.Getenv("DATA_SOURCE_NAME")))
 	}
 
 	if err = iniCfg.SaveTo(*configPath); err != nil {
@@ -376,151 +272,4 @@ func configure() error {
 	}
 
 	return nil
-}
-
-func overrideFlags() {
-	configVisit(func(section, key string, fieldValue reflect.Value) {
-		flagKey := fmt.Sprintf("%s.%s", section, key)
-		if section == "" {
-			flagKey = key
-		}
-
-		setByUser := setByUserMap[flagKey]
-		kingpinF := kingpin.CommandLine.GetFlag(flagKey)
-		if setByUser || kingpinF == nil {
-			return
-		}
-
-		var values []reflect.Value
-		if fieldValue.Kind() == reflect.Slice {
-			for i := 0; i < fieldValue.Len(); i++ {
-				values = append(values, fieldValue.Index(i))
-			}
-		} else {
-			values = []reflect.Value{fieldValue}
-		}
-
-		for i := range values {
-			switch values[i].Kind() {
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Float32, reflect.Int64:
-				kingpinF.Model().Value.Set(strconv.FormatInt(values[i].Int(), 10))
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				kingpinF.Model().Value.Set(strconv.FormatUint(values[i].Uint(), 10))
-			case reflect.Bool:
-				kingpinF.Model().Value.Set(strconv.FormatBool(values[i].Bool()))
-			case reflect.Ptr:
-				if !values[i].IsNil() {
-					if values[i].Elem().Kind() == reflect.Bool {
-						kingpinF.Model().Value.Set(strconv.FormatBool(values[i].Elem().Bool()))
-					} else {
-						kingpinF.Model().Value.Set(values[i].Elem().String())
-					}
-				}
-			default:
-				kingpinF.Model().Value.Set(values[i].String())
-			}
-		}
-	})
-}
-
-func newHandler(exporter *Exporter) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		registry := prometheus.NewRegistry()
-		registry.MustRegister(exporter)
-
-		gatherers := prometheus.Gatherers{
-			prometheus.DefaultGatherer,
-			registry,
-		}
-
-		// Delegate http serving to Prometheus client library, which will call collector.Collect.
-		h := promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{})
-		h.ServeHTTP(w, r)
-	}
-}
-
-type authConfig struct {
-	ServerUser     string `yaml:"server_user,omitempty"`
-	ServerPassword string `yaml:"server_password,omitempty"`
-}
-
-type prometheusWebConfig struct {
-	TLSConfig prometheusTLSConfig `yaml:"tls_server_config"`
-	Users     map[string]string   `yaml:"basic_auth_users"`
-}
-
-type prometheusTLSConfig struct {
-	TLSCertPath  string          `yaml:"cert_file"`
-	TLSKeyPath   string          `yaml:"key_file"`
-	MinVersion   *web.TLSVersion `yaml:"min_version"`
-	MaxVersion   *web.TLSVersion `yaml:"max_version"`
-	CipherSuites []web.Cipher    `yaml:"cipher_suites,omitempty"`
-}
-
-// this function is for translating single-hyphen flags into long flags,
-// to make it compatible with earily PMM/SSM version of node_exporter
-func convertFlagAction(short rune) func(ctx *kingpin.ParseContext) error {
-	convertedMap := make(map[rune]bool)
-
-	return func(pc *kingpin.ParseContext) error {
-		if convertedMap[short] {
-			return nil
-		}
-
-		for _, elem := range pc.Elements {
-			if elem.Clause == nil {
-				continue
-			}
-
-			flagClause, ok := elem.Clause.(*kingpin.FlagClause)
-			if !ok || flagClause.Model().Short != short {
-				continue
-			}
-
-			ctx, err := kingpin.CommandLine.ParseContext([]string{fmt.Sprintf("--%c%s", short, *elem.Value)})
-			if err != nil && ctx != nil && len(ctx.Elements) > 0 && ctx.Elements[0].Clause != nil {
-				// with standard flag package, single-hyphen bool flag is in format
-				// '-<name>=<bool>', this code block here tries to translate it into
-				// kingpin long bool flag
-
-				clause, ok := ctx.Elements[0].Clause.(*kingpin.FlagClause)
-				if !ok || !clause.Model().IsBoolFlag() {
-					return err
-				}
-
-				boolStrs := strings.Split(*elem.Value, "=")
-				if len(boolStrs) == 1 {
-					return err
-				}
-
-				var boolValue bool
-				boolValue, err = strconv.ParseBool(boolStrs[len(boolStrs)-1])
-				if err != nil {
-					return err
-				}
-
-				if boolValue {
-					ctx, err = kingpin.CommandLine.ParseContext([]string{fmt.Sprintf("--%s", clause.Model().Name)})
-				} else {
-					ctx, err = kingpin.CommandLine.ParseContext([]string{fmt.Sprintf("--no-%s", clause.Model().Name)})
-				}
-			}
-			if err != nil || ctx == nil || len(ctx.Elements) == 0 || ctx.Elements[0].Clause == nil {
-				return err
-			}
-
-			flag, ok := ctx.Elements[0].Clause.(*kingpin.FlagClause)
-			if !ok {
-				return fmt.Errorf("unknow flag")
-			}
-
-			setByUserMap[flag.Model().Name] = true
-			if err = flag.Model().Value.Set(*ctx.Elements[0].Value); err != nil {
-				return err
-			}
-		}
-
-		convertedMap[short] = true
-		return nil
-	}
 }

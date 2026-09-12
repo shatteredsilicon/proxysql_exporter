@@ -16,13 +16,12 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/log"
 )
 
 const namespace = "proxysql"
@@ -147,7 +146,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 		defer db.Close()
 	}
 	if err != nil {
-		slog.Error("Error opening connection to ProxySQL: " + err.Error())
+		log.Errorln("Error opening connection to ProxySQL:", err)
 		e.proxysqlUp.Set(0)
 		return
 	}
@@ -155,13 +154,13 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 
 	if e.scrapeMySQLGlobal {
 		if err = scrapeMySQLGlobal(db, ch); err != nil {
-			slog.Error("Error scraping for collect.mysql_status: " + err.Error())
+			log.Errorln("Error scraping for collect.mysql_status:", err)
 			e.scrapeErrorsTotal.WithLabelValues("collect.mysql_status").Inc()
 		}
 	}
 	if e.scrapeMySQLConnectionPool {
 		if err = scrapeMySQLConnectionPool(db, ch); err != nil {
-			slog.Error("Error scraping for collect.mysql_connection_pool: " + err.Error())
+			log.Errorln("Error scraping for collect.mysql_connection_pool:", err)
 			e.scrapeErrorsTotal.WithLabelValues("collect.mysql_connection_pool").Inc()
 		}
 	}
@@ -212,7 +211,7 @@ func scrapeMySQLGlobal(db *sql.DB, ch chan<- prometheus.Metric) error {
 		}
 		value, err := strconv.ParseFloat(valueS, 64)
 		if err != nil {
-			slog.Debug(fmt.Sprintf("variable %s: %s", name, err))
+			log.Debugf("variable %s: %s", name, err)
 			continue
 		}
 
@@ -319,7 +318,7 @@ func scrapeMySQLConnectionPool(db *sql.DB, ch chan<- prometheus.Metric) error {
 				// For now, we assume every other value is a float.
 				value, err = strconv.ParseFloat(valueS, 64)
 				if err != nil {
-					slog.Debug(fmt.Sprintf("column %s: %s", column, err))
+					log.Debugf("column %s: %s", column, err)
 					continue
 				}
 			}

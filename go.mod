@@ -1,47 +1,38 @@
 module github.com/shatteredsilicon/proxysql_exporter
 
-go 1.25.8
+go 1.20
 
 require (
-	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/go-sql-driver/mysql v1.4.0
-	github.com/prometheus/client_golang v1.20.4
-	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.5
-	github.com/prometheus/exporter-toolkit v0.15.1
+	github.com/prometheus/client_golang v0.8.0
+	github.com/prometheus/client_model v0.0.0-20171117100541-99fa1f4be8e5
+	github.com/prometheus/common v0.0.0-20180518154759-7600349dcfe1
+	github.com/shatteredsilicon/exporter_shared v0.0.0-20180321061342-7d9e9cc0256a
 	github.com/smartystreets/goconvey v1.6.3
-	golang.org/x/crypto v0.46.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0
 	gopkg.in/ini.v1 v1.67.0
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
-	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
+	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
+	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb // indirect
-	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
-	github.com/mdlayher/socket v0.4.1 // indirect
-	github.com/mdlayher/vsock v1.2.1 // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
+	github.com/prometheus/procfs v0.0.0-20180612222113-7d6f385de8be // indirect
+	github.com/sirupsen/logrus v1.0.5 // indirect
 	github.com/smartystreets/assertions v0.0.0-20180301161246-7678a5452ebe // indirect
 	github.com/smartystreets/gunit v1.4.5 // indirect
-	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
+	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/term v0.17.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.26.0 // indirect
+	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
+	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
+	gopkg.in/yaml.v2 v2.2.1 // indirect
 )
