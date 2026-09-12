@@ -1,6 +1,6 @@
 module github.com/shatteredsilicon/proxysql_exporter
 
-go 1.26.5
+go 1.26.4
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
@@ -10,7 +10,7 @@ require (
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/exporter-toolkit v0.15.1
 	github.com/smartystreets/goconvey v1.6.3
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.52.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -26,7 +26,7 @@ require (
 	github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -36,11 +36,11 @@ require (
 	github.com/smartystreets/gunit v1.4.5 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
